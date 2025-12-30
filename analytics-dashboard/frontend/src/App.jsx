@@ -49,6 +49,7 @@ const App = () => {
   const [accentColor, setAccentColor] = useState('#6366F1');
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [kinesisData, setKinesisData] = useState([]);
+  const [agentLogs, setAgentLogs] = useState([]);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--accent', accentColor);
@@ -190,6 +191,10 @@ const App = () => {
 
     socket.on('kinesis_data', (data) => {
       setKinesisData(prev => [data, ...prev].slice(0, 100));
+    });
+
+    socket.on('agent_log', (data) => {
+      setAgentLogs(prev => [data, ...prev].slice(0, 100));
     });
 
     return () => socket.disconnect();
@@ -1273,6 +1278,30 @@ const App = () => {
     </div>
   );
 
+  const renderAgentHeartbeat = () => (
+    <div className="panel animate-in" style={{ background: '#000', border: '1px solid #333' }}>
+      <div className="panel-header" style={{ borderBottom: '1px solid #222', paddingBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Activity size={18} style={{ color: 'var(--accent)' }} />
+          <div className="panel-title" style={{ margin: 0, color: '#ccc' }}>Agent Live Heartbeat</div>
+          <div className="status-badge online" style={{ fontSize: '0.6rem' }}>UPLINK_STABLE</div>
+        </div>
+      </div>
+      <div className="terminal-body" style={{ height: 'calc(100vh - 300px)', overflowY: 'auto', fontFamily: 'monospace', padding: '1rem', color: '#fff' }}>
+        {agentLogs.length === 0 ? (
+          <div style={{ color: '#444' }}>Waiting for agent signal...</div>
+        ) : (
+          agentLogs.map((log, i) => (
+            <div key={i} style={{ marginBottom: '0.25rem', display: 'flex', gap: '1rem' }}>
+              <span style={{ color: '#888' }}>[{log.timestamp}]</span>
+              <span style={{ color: '#fff' }}>{log.message}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
   if (!isLoggedIn) return renderLogin();
   if (!stats) return renderLoader();
 
@@ -1331,6 +1360,9 @@ const App = () => {
           </div>
           <div className={`nav-item ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>
             <Terminal size={18} /> <span>Terminal</span>
+          </div>
+          <div className={`nav-item ${activeTab === 'heartbeat' ? 'active' : ''}`} onClick={() => setActiveTab('heartbeat')}>
+            <Activity size={18} style={{ color: 'var(--accent)' }} /> <span>Agent Heartbeat</span>
           </div>
           <div className={`nav-item ${activeTab === 'kinesis' ? 'active' : ''}`} onClick={() => setActiveTab('kinesis')}>
             <Zap size={18} /> <span>Kinesis Stream</span>
@@ -1548,6 +1580,7 @@ const App = () => {
                     </div>
                   </div>
                 )}
+                {activeTab === 'heartbeat' && renderAgentHeartbeat()}
                 {activeTab === 'kinesis' && renderKinesisStream()}
                 {activeTab === 'settings' && (
                   <div className="panel animate-in">

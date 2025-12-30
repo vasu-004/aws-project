@@ -63,6 +63,16 @@ app.post('/agent_data', (req, res) => {
         io.emit('kinesis_data', kinesis_event);
     }
 
+    // 3. Emit Log for Terminal View
+    if (kinesis_event && kinesis_event.data) {
+        const logEntry = {
+            timestamp: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+            message: `✅ Pushed to Kinesis: ${kinesis_event.data.user} -> ${kinesis_event.data.action}`,
+            type: 'kinesis'
+        };
+        io.emit('agent_log', logEntry);
+    }
+
     res.status(200).send('OK');
 });
 
