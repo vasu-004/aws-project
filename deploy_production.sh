@@ -9,41 +9,56 @@
 set -e
 
 APP_DIR="/opt/Nodejs/analytics-dashboard"
+BACKEND_DIR="$APP_DIR/analytics-dashboard/backend"
+FRONTEND_DIR="$APP_DIR/analytics-dashboard/frontend"
 LOG_FILE="/var/log/dashboard_deploy.log"
 
 echo "🚀 Starting Production Deployment..."
 
+# 0. Install System Dependencies (Node.js, npm, PM2)
+echo "📦 Checking system dependencies..."
+if ! command -v node &> /dev/null; then
+    echo "⬇️ Installing Node.js..."
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+fi
+
+if ! command -v pm2 &> /dev/null; then
+    echo "📥 Installing PM2 globally..."
+    sudo npm install -g pm2
+fi
+
+REPO_URL="https://github.com/vasu-004/aws-project.git"
+
 # 1. Ensure target directory exists and has correct permissions
 echo "📁 Preparing directory structure..."
-sudo mkdir -p $APP_DIR
-sudo chown -R $USER:$USER $APP_DIR
+sudo mkdir -p $(dirname $APP_DIR)
+sudo chown -R $USER:$USER $(dirname $APP_DIR)
 
-# 2. Copy application source to /opt
-# Note: This assumes current script is run from the project root or code is extracted here
-echo "📦 Syncing source code to $APP_DIR..."
-cp -r . $APP_DIR/
+# 2. Source code acquisition via Git
+if [ -d "$APP_DIR/.git" ]; then
+    echo "🔄 Repository exists. Pulling latest changes..."
+    cd $APP_DIR
+    git pull origin main
+else
+    echo "📦 Cloning repository from $REPO_URL..."
+    git clone $REPO_URL $APP_DIR
+fi
 
 # 3. Setup Backend Service
 echo "⚙️  Configuring Backend..."
-cd $APP_DIR/backend
+cd $BACKEND_DIR
 npm install --production
 
 # 4. Setup Frontend & Build Production Bundle
 echo "⚛️  Building Frontend UI..."
-cd $APP_DIR/frontend
+cd $FRONTEND_DIR
 npm install
 npm run build
 
 # 5. Initialize or Restart PM2 Service
 echo "🔄 Initializing PM2 Service..."
-cd $APP_DIR/backend
-
-# Check if pm2 is installed
-if ! command -v pm2 &> /dev/null
-then
-    echo "📥 Installing PM2 globally..."
-    sudo npm install -g pm2
-fi
+cd $BACKEND_DIR
 
 # Stop existing if running
 pm2 stop analytics-dashboard || true
