@@ -3,6 +3,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const AWS = require('aws-sdk');
+const pm2 = require('pm2');
 
 const app = express();
 const path = require('path');
@@ -45,6 +46,43 @@ const io = socketIo(server, {
         methods: ["GET", "POST"]
     },
     transports: ['websocket', 'polling']
+});
+
+// PM2 Log Streaming Logic
+pm2.connect((err) => {
+    if (err) {
+        console.error('PM2 Connection Error:', err);
+        return;
+    }
+
+    pm2.launchBus((err, bus) => {
+        if (err) {
+            console.error('PM2 Bus Error:', err);
+            return;
+        }
+
+        console.log('🚀 PM2 Log Bus Connected');
+
+        bus.on('log:out', (data) => {
+            if (data.process.name !== 'pm2-log-broadcaster') { // Avoid self-logs if name matches
+                io.emit('pm2_log', {
+                    process: data.process.name,
+                    data: data.data,
+                    type: 'out',
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        bus.on('log:err', (data) => {
+            io.emit('pm2_log', {
+                process: data.process.name,
+                data: data.data,
+                type: 'err',
+                timestamp: new Date().toISOString()
+            });
+        });
+    });
 });
 
 // New Endpoint for Real Agent Data (Robust Handling)
