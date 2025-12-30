@@ -1,0 +1,73 @@
+                {activeTab === 'settings' && (
+                  <div className="panel animate-in">
+                    <div className="panel-header">
+                      <div className="panel-title"><Server size={20} /> System Architecture</div>
+                    </div>
+                    <div className="info-grid">
+                      <div className="info-card">
+                        <div className="info-section-title"><User size={14} /> Host Identity</div>
+                        <div className="info-row">
+                          <div className="info-label"><Monitor size={16} /> Operating System</div>
+                          <div className="info-value">{stats.system?.distro || 'Windows'}</div>
+                        </div>
+                        <div className="info-row">
+                          <div className="info-label"><Shield size={16} /> Architecture</div>
+                          <div className="info-value">{stats.system?.platform || 'win64'}</div>
+                        </div>
+                        <div className="info-row">
+                          <div className="info-label"><Activity size={16} /> Host Name</div>
+                          <div className="info-value">{stats.system?.hostname || 'unknown'}</div>
+                        </div>
+                      </div>
+
+                      <div className="info-card">
+                        <div className="info-section-title"><Cpu size={14} /> Core Logic</div>
+                        <div className="info-row">
+                          <div className="info-label"><Box size={16} /> CPU Cores</div>
+                          <div className="info-value">{stats.cpu?.cores || 0} Physical</div>
+                        </div>
+                        <div className="info-row">
+                          <div className="info-label"><TrendingUp size={16} /> Clock Speed</div>
+                          <div className="info-value">{stats.cpu?.speed || 0} GHz</div>
+                        </div>
+                        <div className="info-row">
+                          <div className="info-label"><Clock size={16} /> Session Uptime</div>
+                          <div className="info-value">{(stats.system?.uptime / 3600 || 0).toFixed(2)} Hrs</div>
+                        </div>
+                      </div>
+
+                      <div className="info-card" style={{ gridColumn: 'span 2' }}>
+                        <div className="info-section-title"><Activity size={14} /> VM Signal Intelligence (Metric Mapping)</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
+                          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                            <div style={{ fontWeight: 800, color: 'var(--accent)', fontSize: '0.75rem', marginBottom: '0.75rem', letterSpacing: '1px' }}>CPU_TELEMETRY</div>
+                            <ul style={{ listStyle: 'none', fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Load Factor</span> <span style={{ color: 'var(--text-primary)' }}>{stats.cpu?.usage}%</span></li>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Model</span> <span style={{ color: 'var(--text-primary)', fontSize: '0.7rem' }}>{stats.system?.cpu_model?.substring(0, 20)}...</span></li>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Frequency</span> <span style={{ color: 'var(--text-primary)' }}>{stats.cpu?.speed} GHz</span></li>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Thread Count</span> <span style={{ color: 'var(--text-primary)' }}>{stats.cpu?.threads || stats.cpu?.cores * 2}</span></li>
+                            </ul>
+                          </div>
+                          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                            <div style={{ fontWeight: 800, color: 'var(--ram)', fontSize: '0.75rem', marginBottom: '0.75rem', letterSpacing: '1px' }}>MEMORY_POOL</div>
+                            <ul style={{ listStyle: 'none', fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Physical Total</span> <span style={{ color: 'var(--text-primary)' }}>{stats.memory?.total} GB</span></li>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Active Buffer</span> <span style={{ color: 'var(--text-primary)' }}>{stats.memory?.used} GB</span></li>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Available Headroom</span> <span style={{ color: 'var(--text-primary)' }}>{stats.memory?.available || (stats.memory?.total - stats.memory?.used).toFixed(2)} GB</span></li>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Commit Percentage</span> <span style={{ color: 'var(--text-primary)' }}>{stats.memory?.percentage}%</span></li>
+                            </ul>
+                          </div>
+                          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                            <div style={{ fontWeight: 800, color: 'var(--online)', fontSize: '0.75rem', marginBottom: '0.75rem', letterSpacing: '1px' }}>NETWORK_INGRESS</div>
+                            <ul style={{ listStyle: 'none', fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Current RX</span> <span style={{ color: 'var(--text-primary)' }}>{stats.network?.[0]?.rx} KB/s</span></li>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Current TX</span> <span style={{ color: 'var(--text-primary)' }}>{stats.network?.[0]?.tx} KB/s</span></li>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Primary NIC</span> <span style={{ color: 'var(--text-primary)' }}>{stats.network?.[0]?.iface}</span></li>
+                              <li style={{ display: 'flex', justifyContent: 'space-between' }}><span>• Signal State</span> <span style={{ color: 'var(--online)', fontWeight: 800 }}>{stats.network?.[0]?.operstate?.toUpperCase()}</span></li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}

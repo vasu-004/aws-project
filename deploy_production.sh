@@ -8,7 +8,7 @@
 # Exit on error
 set -e
 
-APP_DIR="/opt/analytics-dashboard"
+APP_DIR="/opt/Nodejs/analytics-dashboard"
 LOG_FILE="/var/log/dashboard_deploy.log"
 
 echo "🚀 Starting Production Deployment..."
