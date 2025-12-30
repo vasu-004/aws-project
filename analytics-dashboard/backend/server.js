@@ -48,42 +48,54 @@ const io = socketIo(server, {
     transports: ['websocket', 'polling']
 });
 
-// PM2 Log Streaming Logic
-pm2.connect((err) => {
-    if (err) {
-        console.error('PM2 Connection Error:', err);
-        return;
-    }
-
-    pm2.launchBus((err, bus) => {
+// PM2 Log Streaming Logic (Enhanced for Reliability)
+const initPM2Bus = () => {
+    pm2.connect((err) => {
         if (err) {
-            console.error('PM2 Bus Error:', err);
+            console.error('PM2 Connection Error:', err);
+            // Retry connection after 5 seconds
+            setTimeout(initPM2Bus, 5000);
             return;
         }
 
-        console.log('🚀 PM2 Log Bus Connected');
+        pm2.launchBus((err, bus) => {
+            if (err) {
+                console.error('PM2 Bus Error:', err);
+                return;
+            }
 
-        bus.on('log:out', (data) => {
-            if (data.process.name !== 'pm2-log-broadcaster') { // Avoid self-logs if name matches
+            console.log('🚀 PM2 Log Bus Connected');
+
+            // Diagnostic Log to verify connection in Dashboard
+            io.emit('pm2_log', {
+                process: 'SYSTEM',
+                data: 'CloudX Log Streaming Subsystem Initialized: ACTIVE',
+                type: 'out',
+                timestamp: new Date().toISOString()
+            });
+
+            bus.on('log:out', (data) => {
                 io.emit('pm2_log', {
                     process: data.process.name,
                     data: data.data,
                     type: 'out',
                     timestamp: new Date().toISOString()
                 });
-            }
-        });
+            });
 
-        bus.on('log:err', (data) => {
-            io.emit('pm2_log', {
-                process: data.process.name,
-                data: data.data,
-                type: 'err',
-                timestamp: new Date().toISOString()
+            bus.on('log:err', (data) => {
+                io.emit('pm2_log', {
+                    process: data.process.name,
+                    data: data.data,
+                    type: 'err',
+                    timestamp: new Date().toISOString()
+                });
             });
         });
     });
-});
+};
+
+initPM2Bus();
 
 // New Endpoint for Real Agent Data (Robust Handling)
 app.post('/agent_data', (req, res) => {
