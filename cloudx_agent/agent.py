@@ -54,33 +54,68 @@ def get_app_event():
     }
 
 def get_system_stats():
-    """Collects real-time system metrics."""
+    """Collects comprehensive real-time system metrics."""
     cpu_usage = psutil.cpu_percent(interval=1)
     memory = psutil.virtual_memory()
+    disk = psutil.disk_usage('/')
     net_io = psutil.net_io_counters()
+
+    # Process list
+    processes = []
+    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_info']):
+        try:
+            pinfo = proc.info
+            processes.append({
+                "pid": pinfo['pid'],
+                "name": pinfo['name'],
+                "cpu": pinfo['cpu_percent'],
+                "mem": round(pinfo['memory_info'].rss / (1024 * 1024), 2)
+            })
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    
+    # Sort by CPU and take top 10
+    processes = sorted(processes, key=lambda x: x['cpu'], reverse=True)[:10]
 
     return {
         "system": {
             "platform": platform.system().lower(),
             "hostname": AGENT_ID,
             "distro": f"{platform.system()} {platform.release()}",
-            "uptime": int(time.time() - psutil.boot_time())
+            "uptime": int(time.time() - psutil.boot_time()),
+            "cpu_model": platform.processor(),
+            "python_version": platform.python_version()
         },
         "cpu": {
             "usage": cpu_usage,
-            "cores": psutil.cpu_count()
+            "cores": psutil.cpu_count(),
+            "speed": psutil.cpu_freq().current / 1000 if psutil.cpu_freq() else 0,
+            "threads": psutil.cpu_count(logical=True)
         },
         "memory": {
             "total": round(memory.total / (1024**3), 2),
-            "percentage": memory.percent
+            "used": round(memory.used / (1024**3), 2),
+            "percentage": memory.percent,
+            "available": round(memory.available / (1024**3), 2)
         },
+        "storage": [
+            {
+                "drive": "/",
+                "total": round(disk.total / (1024**3), 2),
+                "used": round(disk.used / (1024**3), 2),
+                "percentage": disk.percent,
+                "free": round(disk.free / (1024**3), 2)
+            }
+        ],
         "network": [
             {
                 "iface": "primary",
                 "rx": round(net_io.bytes_recv / 1024, 2),
-                "tx": round(net_io.bytes_sent / 1024, 2)
+                "tx": round(net_io.bytes_sent / 1024, 2),
+                "operstate": "up"
             }
         ],
+        "processes": processes,
         "timestamp": datetime.now().isoformat()
     }
 
