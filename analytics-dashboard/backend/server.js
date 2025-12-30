@@ -75,21 +75,27 @@ const initPM2Bus = () => {
             });
 
             bus.on('log:out', (data) => {
-                io.emit('pm2_log', {
+                const log = {
                     process: data.process.name,
                     data: data.data,
                     type: 'out',
                     timestamp: new Date().toISOString()
-                });
+                };
+                logBuffer.push(log);
+                if (logBuffer.length > 100) logBuffer.shift();
+                io.emit('pm2_log', log);
             });
 
             bus.on('log:err', (data) => {
-                io.emit('pm2_log', {
+                const log = {
                     process: data.process.name,
                     data: data.data,
                     type: 'err',
                     timestamp: new Date().toISOString()
-                });
+                };
+                logBuffer.push(log);
+                if (logBuffer.length > 100) logBuffer.shift();
+                io.emit('pm2_log', log);
             });
         });
     });
@@ -131,14 +137,21 @@ app.post('/agent_data', (req, res) => {
     res.status(200).send('OK');
 });
 
-// Global state for real-time metrics
+// Global state for real-time metrics and log buffer
 let globalStats = null;
+let logBuffer = [];
 
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
 
+    // Initial sync
     if (globalStats) {
         socket.emit('server_stats', globalStats);
+    }
+
+    // Send historical logs to new client
+    if (logBuffer.length > 0) {
+        logBuffer.forEach(log => socket.emit('pm2_log', log));
     }
 
     socket.on('disconnect', () => {
