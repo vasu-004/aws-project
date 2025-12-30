@@ -47,30 +47,35 @@ const io = socketIo(server, {
     transports: ['websocket', 'polling']
 });
 
-// New Endpoint for Real Agent Data (Combined Metrics & Kinesis Flow)
+// New Endpoint for Real Agent Data (Robust Handling)
 app.post('/agent_data', (req, res) => {
-    const { stats, kinesis_event } = req.body;
+    let statsData = req.body.stats || (req.body.cpu ? req.body : null);
+    let kEvent = req.body.kinesis_event || null;
 
     // 1. Process System Stats (Overview Tab)
-    if (stats) {
-        globalStats = stats;
-        io.emit('server_stats', stats);
+    if (statsData) {
+        globalStats = statsData;
+        io.emit('server_stats', statsData);
     }
 
     // 2. Process Real Kinesis Event (Stream Tab)
-    if (kinesis_event) {
-        // console.log("📡 Real Stream Event from Agent:", kinesis_event.id);
-        io.emit('kinesis_data', kinesis_event);
+    if (kEvent) {
+        io.emit('kinesis_data', kEvent);
     }
 
     // 3. Emit Log for Terminal View
-    if (kinesis_event && kinesis_event.data) {
-        const logEntry = {
+    let logMsg = '';
+    if (kEvent) {
+        logMsg = `✅ Pushed to Kinesis: ${kEvent.data?.user || 'Unknown'} -> ${kEvent.data?.action || 'Unknown'}`;
+    } else if (statsData) {
+        logMsg = `📡 Heartbeat: CPU: ${statsData.cpu?.usage || 0}% | RAM: ${statsData.memory?.percentage || 0}%`;
+    }
+
+    if (logMsg) {
+        io.emit('agent_log', {
             timestamp: new Date().toLocaleTimeString('en-GB', { hour12: false }),
-            message: `✅ Pushed to Kinesis: ${kinesis_event.data.user} -> ${kinesis_event.data.action}`,
-            type: 'kinesis'
-        };
-        io.emit('agent_log', logEntry);
+            message: logMsg
+        });
     }
 
     res.status(200).send('OK');
