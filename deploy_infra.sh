@@ -15,10 +15,19 @@ echo "🚀 Initializing AWS Infrastructure Deployment..."
 
 # 0. Install and Configure AWS CLI
 if ! command -v aws &> /dev/null; then
-    echo "⬇️ AWS CLI not found. Attempting to install..."
-    curl "https://awscli.amazonaws.com/AWSCLIV2.msi" -o "AWSCLIV2.msi"
-    msiexec.exe /i AWSCLIV2.msi /qn
-    echo "✅ AWS CLI installation initiated. If command fails next, restart terminal."
+    echo "⬇️ AWS CLI not found. Attempting to install for Linux..."
+    # Install dependencies
+    if command -v apt-get &> /dev/null; then
+        apt-get update && apt-get install -y curl unzip
+    elif command -v yum &> /dev/null; then
+        yum install -y curl unzip
+    fi
+
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip -q awscliv2.zip
+    ./aws/install
+    rm -rf aws awscliv2.zip
+    echo "✅ AWS CLI installed."
 else
     echo "✅ AWS CLI is already installed."
 fi
