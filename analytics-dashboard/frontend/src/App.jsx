@@ -590,7 +590,7 @@ const App = () => {
                 <div className="hud-stat-header">
                   <div className="hud-stat-info">
                     <span className="hud-metric-label">CPU_COMPUTE_LOAD</span>
-                    <span className="hud-metric-value">{stats.cpu?.usage || 0}%</span>
+                    <span className="hud-metric-value">{Math.round(stats.cpu?.usage || 0)}%</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span className={`hud-status-tag ${parseFloat(stats.cpu?.usage || 0) > 85 ? 'critical' : parseFloat(stats.cpu?.usage || 0) > 70 ? 'warning' : 'active'}`}>
                         {parseFloat(stats.cpu?.usage || 0) > 85 ? 'CRITICAL_LOAD' : 'OPTIMAL_STATE'}
@@ -626,7 +626,7 @@ const App = () => {
                 <div className="hud-stat-header">
                   <div className="hud-stat-info">
                     <span className="hud-metric-label">RAM_MEMORY_POOL</span>
-                    <span className="hud-metric-value">{stats.memory?.percentage || 0}%</span>
+                    <span className="hud-metric-value">{Math.round(stats.memory?.percentage || 0)}%</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span className={`hud-status-tag ${parseFloat(stats.memory?.percentage || 0) > 90 ? 'critical' : 'active'}`}>
                         {stats.memory?.used || 0} GB ALLOCATED
@@ -662,7 +662,7 @@ const App = () => {
                 <div className="hud-stat-header">
                   <div className="hud-stat-info">
                     <span className="hud-metric-label">DISK_STORAGE_ARRAY</span>
-                    <span className="hud-metric-value">{stats.storage?.[0]?.percentage || 0}%</span>
+                    <span className="hud-metric-value">{Math.round(stats.storage?.[0]?.percentage || 0)}%</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span className={`hud-status-tag ${stats.storage?.[0]?.percentage > 85 ? 'warning' : 'active'}`}>
                         {stats.storage?.[0]?.used || 0} GB CAPTURED
@@ -698,8 +698,14 @@ const App = () => {
                 <div className="hud-stat-header">
                   <div className="hud-stat-info">
                     <span className="hud-metric-label">NET_THROUGHPUT_X1</span>
-                    <span className="hud-metric-value">{stats.network?.[0]?.rx || 0}</span>
-                    <span className="hud-status-tag active">SYNC_ACTIVE [KB/s]</span>
+                    <span className="hud-metric-value">
+                      {stats.network?.[0]?.rx > 1024
+                        ? `${(stats.network[0].rx / 1024).toFixed(1)}`
+                        : `${Math.round(stats.network?.[0]?.rx || 0)}`}
+                    </span>
+                    <span className="hud-status-tag active">
+                      {stats.network?.[0]?.rx > 1024 ? 'SYNC_ACTIVE [MB/s]' : 'SYNC_ACTIVE [KB/s]'}
+                    </span>
                   </div>
                   <div className="hud-stat-visual">
                     <svg width="60" height="60" viewBox="0 0 60 60">
