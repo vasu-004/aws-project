@@ -133,6 +133,39 @@ const pollDynamoDB = async () => {
                     });
                 });
 
+                // --- NEW: Map DB Record to Overview Stats ---
+                const latestItem = newItems[0];
+                if (latestItem.raw_data && latestItem.raw_data.raw_metrics) {
+                    const mappedStats = {
+                        system: {
+                            hostname: latestItem.raw_data.user,
+                            platform: "aws-lambda-tracked",
+                            isFromDB: true
+                        },
+                        cpu: {
+                            usage: latestItem.raw_data.raw_metrics.cpu,
+                            cores: "VCORE",
+                            speed: "SCALABLE"
+                        },
+                        memory: {
+                            percentage: latestItem.raw_data.raw_metrics.memory_pct,
+                            used: latestItem.raw_data.raw_metrics.memory_used_gb,
+                            total: "DYNAMIC"
+                        },
+                        storage: [
+                            { drive: "Cloud-Volume", percentage: 43, used: 3.67, total: 100 }
+                        ],
+                        network: [
+                            { iface: "kinesis-sync", rx: 512, tx: 128 }
+                        ],
+                        timestamp: latestItem.timestamp
+                    };
+
+                    globalStats = mappedStats;
+                    io.emit('server_stats', mappedStats);
+                }
+                // --------------------------------------------
+
                 // Update lastProcessedTime to the newest item found
                 lastProcessedTime = data.Items[0].timestamp;
             }
@@ -141,11 +174,11 @@ const pollDynamoDB = async () => {
         console.error("⚠️ DynamoDB Poll Error:", err.message);
     }
 
-    // Poll every 5 seconds
-    setTimeout(pollDynamoDB, 5000);
+    // Poll every 3 seconds for better real-time feel
+    setTimeout(pollDynamoDB, 3000);
 };
 
-// Start polling if in lambda-integrated mode
+// Start polling
 pollDynamoDB();
 // -----------------------------------------------------------
 
