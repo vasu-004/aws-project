@@ -13,8 +13,12 @@ app.use(express.json());
 // Serve Static Frontend (Production Build)
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
-// AWS Configuration (assuming env vars or local config)
-AWS.config.update({ region: 'ap-south-1' });
+// AWS Configuration
+AWS.config.update({
+    region: 'ap-south-1',
+    accessKeyId: 'AKIA2S2Y4JEZ5DPEZZLI',
+    secretAccessKey: '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'
+});
 const dynamodb = new AWS.DynamoDB.DocumentClient();
 const kinesis = new AWS.Kinesis();
 
@@ -182,38 +186,10 @@ const pollDynamoDB = async () => {
 pollDynamoDB();
 // -----------------------------------------------------------
 
-// New Endpoint for Real Agent Data (Robust Handling)
+// Endpoint for Direct Agent (Legacy/Testing - Disabled to focus on Kinesis)
 app.post('/agent_data', (req, res) => {
-    let statsData = req.body.stats || (req.body.cpu ? req.body : null);
-    let kEvent = req.body.kinesis_event || null;
-
-    // 1. Process System Stats (Overview Tab)
-    if (statsData) {
-        globalStats = statsData;
-        io.emit('server_stats', statsData);
-    }
-
-    // 2. Process Real Kinesis Event (Stream Tab)
-    if (kEvent) {
-        io.emit('kinesis_data', kEvent);
-    }
-
-    // 3. Emit Log for Terminal View
-    let logMsg = '';
-    if (kEvent) {
-        logMsg = `✅ Pushed to Kinesis: ${kEvent.data?.user || 'Unknown'} -> ${kEvent.data?.action || 'Unknown'}`;
-    } else if (statsData) {
-        logMsg = `📡 Heartbeat: CPU: ${statsData.cpu?.usage || 0}% | RAM: ${statsData.memory?.percentage || 0}%`;
-    }
-
-    if (logMsg) {
-        io.emit('agent_log', {
-            timestamp: new Date().toLocaleTimeString('en-GB', { hour12: false }),
-            message: logMsg
-        });
-    }
-
-    res.status(200).send('OK');
+    // We intentionally ignore this to force all data to come via Kinesis->Lambda->DB
+    res.status(200).send('Ignored - Using Cloud DB Sync');
 });
 
 // Global state for real-time metrics and log buffer
