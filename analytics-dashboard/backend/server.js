@@ -103,6 +103,52 @@ const initPM2Bus = () => {
 
 initPM2Bus();
 
+// --- NEW: DynamoDB Polling for Real-Time Dashboard Updates ---
+let lastProcessedTime = new Date().toISOString();
+
+const pollDynamoDB = async () => {
+    try {
+        const params = {
+            TableName: 'AnalyticsData',
+            Limit: 10,
+            ScanIndexForward: false // Newest first
+        };
+
+        const data = await dynamodb.scan(params).promise();
+
+        if (data.Items && data.Items.length > 0) {
+            // Find items newer than lastProcessedTime
+            const newItems = data.Items.filter(item => item.timestamp > lastProcessedTime);
+
+            if (newItems.length > 0) {
+                console.log(`✨ Found ${newItems.length} new records in DynamoDB`);
+
+                // Emit each new item as a Kinesis event for the frontend
+                newItems.forEach(item => {
+                    io.emit('kinesis_data', {
+                        id: item.id.substring(0, 8),
+                        sequenceNumber: item.id,
+                        data: item.raw_data,
+                        timestamp: item.timestamp
+                    });
+                });
+
+                // Update lastProcessedTime to the newest item found
+                lastProcessedTime = data.Items[0].timestamp;
+            }
+        }
+    } catch (err) {
+        console.error("⚠️ DynamoDB Poll Error:", err.message);
+    }
+
+    // Poll every 5 seconds
+    setTimeout(pollDynamoDB, 5000);
+};
+
+// Start polling if in lambda-integrated mode
+pollDynamoDB();
+// -----------------------------------------------------------
+
 // New Endpoint for Real Agent Data (Robust Handling)
 app.post('/agent_data', (req, res) => {
     let statsData = req.body.stats || (req.body.cpu ? req.body : null);
