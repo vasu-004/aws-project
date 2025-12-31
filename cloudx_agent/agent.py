@@ -86,10 +86,8 @@ def main():
             stats = get_system_stats()
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Sending metrics... CPU: {stats['cpu']['usage']}% | RAM: {stats['memory']['percentage']}%")
             
-            # Send to backend
+            # Send telemetry to cloudx agent endpoint
             try:
-                # In a real scenario, you'd use socketio-client here
-                # Simulation: sending to an agent ingest endpoint
                 requests.post(f"{BACKEND_URL}/agent_data", json=stats, timeout=1)
             except:
                 pass

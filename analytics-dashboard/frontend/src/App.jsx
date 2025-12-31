@@ -48,7 +48,6 @@ const App = () => {
   const [uiStyle, setUiStyle] = useState('tactical'); // tactical, aura
   const [accentColor, setAccentColor] = useState('#6366F1');
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
-  const [kinesisData, setKinesisData] = useState([]);
   const [agentLogs, setAgentLogs] = useState([]);
 
   useEffect(() => {
@@ -189,9 +188,7 @@ const App = () => {
       }
     });
 
-    socket.on('kinesis_data', (data) => {
-      setKinesisData(prev => [data, ...prev].slice(0, 100));
-    });
+
 
     socket.on('agent_log', (data) => {
       setAgentLogs(prev => [data, ...prev].slice(0, 100));
@@ -206,11 +203,7 @@ const App = () => {
     }
   }, [logs, activeTab]);
 
-  useEffect(() => {
-    if (activeTab === 'kinesis') {
-      fetchKinesisHistory();
-    }
-  }, [activeTab]);
+
 
   const handlePM2Action = (action, name) => {
     if (socketRef.current) {
@@ -596,7 +589,7 @@ const App = () => {
                         {parseFloat(stats.cpu?.usage || 0) > 85 ? 'CRITICAL_LOAD' : 'OPTIMAL_STATE'}
                       </span>
                       <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', opacity: 0.6, fontFamily: 'monospace' }}>
-                        SRC: {stats.system?.hostname?.includes('dummy') ? 'PENDING_SIGNAL' : 'VM_AGENT'}
+                        SRC: VM_AGENT
                       </span>
                     </div>
                   </div>
@@ -632,7 +625,7 @@ const App = () => {
                         {stats.memory?.used || 0} GB ALLOCATED
                       </span>
                       <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', opacity: 0.6, fontFamily: 'monospace' }}>
-                        SRC: {stats.system?.hostname?.includes('dummy') ? 'PENDING_SIGNAL' : 'VM_AGENT'}
+                        SRC: VM_AGENT
                       </span>
                     </div>
                   </div>
@@ -668,7 +661,7 @@ const App = () => {
                         {stats.storage?.[0]?.used || 0} GB CAPTURED
                       </span>
                       <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', opacity: 0.6, fontFamily: 'monospace' }}>
-                        SRC: {stats.system?.hostname?.includes('dummy') ? 'PENDING_SIGNAL' : 'VM_AGENT'}
+                        SRC: VM_AGENT
                       </span>
                     </div>
                   </div>
@@ -1004,8 +997,8 @@ const App = () => {
                   opacity="0.9"
                 />
 
-                {[0, 20, 40, 60, 80, 100].map((val) => {
-                  const angle = (val / 100) * 180 - 180;
+                {[0, 200, 400, 600, 800, 1000].map((val) => {
+                  const angle = (val / 1000) * 180 - 180;
                   const rad = (angle * Math.PI) / 180;
                   const tx = 100 + 104 * Math.cos(rad);
                   const ty = 110 + 104 * Math.sin(rad);
@@ -1016,7 +1009,8 @@ const App = () => {
 
                 {(() => {
                   const speed = parseFloat(stats.network?.[0]?.rx || 0);
-                  const valRel = Math.min(100, (speed / 2048) * 100);
+                  const speedMB = speed / 1024;
+                  const valRel = Math.min(100, (speedMB / 1000) * 100);
                   const angle = (valRel / 100) * 180;
                   return (
                     <g style={{ transition: 'transform 1s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: `rotate(${angle}deg)`, transformOrigin: '100px 110px' }} filter="url(#needleGlow)">
@@ -1030,7 +1024,12 @@ const App = () => {
 
               <div style={{ position: 'absolute', textAlign: 'center', top: '50%', transform: 'translateY(15%)' }}>
                 <div style={{ fontSize: nCfg.telemetrySize, fontWeight: 900, color: '#fff', letterSpacing: '-1.5px', fontFamily: 'monospace' }}>
-                  {stats.network?.[0]?.rx || 0} <small style={{ fontSize: nCfg.telemetrySub, opacity: 0.7, fontWeight: 700 }}>KB/s</small>
+                  {stats.network?.[0]?.rx > 1024
+                    ? (stats.network[0].rx / 1024).toFixed(2)
+                    : stats.network?.[0]?.rx || 0}
+                  <small style={{ fontSize: nCfg.telemetrySub, opacity: 0.7, fontWeight: 700 }}>
+                    {stats.network?.[0]?.rx > 1024 ? 'MB/s' : 'KB/s'}
+                  </small>
                 </div>
                 <div style={{ fontSize: nCfg.telemetrySub, color: '#10b981', textTransform: 'uppercase', letterSpacing: '3px', marginTop: '2px', fontWeight: 900 }}>
                   FLUX RATE
@@ -1130,112 +1129,11 @@ const App = () => {
     );
   };
 
-  const fetchKinesisHistory = async () => {
-    try {
-      const response = await fetch(`${SOCKET_SERVER}/api/stream-data`);
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        // Map DynamoDB items back to the format the UI expects
-        const mappedData = data.map(item => ({
-          id: item.id.substring(0, 8),
-          sequenceNumber: item.id,
-          data: item.raw_data,
-          approximateArrivalTimestamp: item.timestamp
-        }));
-        setKinesisData(prev => {
-          const combined = [...mappedData, ...prev];
-          const unique = Array.from(new Map(combined.map(item => [item.sequenceNumber, item])).values());
-          return unique.slice(0, 100);
-        });
-        toast.success('Kinesis Sync', { description: `Retrieved ${data.length} historical records.` });
-      }
-    } catch (err) {
-      console.error("API Error:", err);
-      toast.error('Sync Failed', { description: 'Could not reach analytics API.' });
-    }
-  };
 
 
 
-  const renderKinesisStream = () => (
-    <div className="panel animate-in">
-      <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div className="panel-title" style={{ margin: 0 }}><Zap size={18} style={{ color: '#ffde59' }} /> Live Kinesis Data Stream</div>
-          <div className="status-badge online" style={{ fontSize: '0.7rem' }}>CLOUDX_INGRESS_ACTIVE</div>
-          <button
-            onClick={fetchKinesisHistory}
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.6rem', cursor: 'pointer' }}
-          >
-            <RefreshCw size={10} style={{ marginRight: '4px' }} /> REFRESH_API
-          </button>
-        </div>
-        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-          Total Pulled: {kinesisData.length} records
-        </div>
-      </div>
 
-      <div className="kinesis-feed-container" style={{ maxHeight: 'calc(100vh - 300px)', overflowY: 'auto', paddingRight: '0.5rem' }}>
-        {kinesisData.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--text-secondary)' }}>
-            <RefreshCw className="animate-spin" size={32} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-            <p>Scanning Kinesis Shards...</p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {kinesisData.map((record, i) => (
-              <motion.div
-                key={record.sequenceNumber}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                style={{
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                  padding: '1rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.5rem',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}
-              >
-                <div style={{ position: 'absolute', top: 0, right: 0, padding: '2px 8px', fontSize: '0.6rem', background: 'var(--accent)', color: '#fff', borderRadius: '0 0 0 8px', fontFamily: 'monospace' }}>
-                  {record.id}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                    <div style={{ padding: '6px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '6px' }}>
-                      <User size={14} style={{ color: 'var(--accent)' }} />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{record.data.user}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{record.data.action.toUpperCase()}</div>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>{record.data.page}</div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{new Date(record.data.timestamp).toLocaleTimeString()}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                    <Globe size={10} /> {record.data.meta.browser}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                    <Monitor size={10} /> {record.data.meta.os}
-                  </div>
-                  <div style={{ marginLeft: 'auto', fontSize: '0.6rem', color: '#475569', fontFamily: 'monospace' }}>
-                    SEQ: {record.sequenceNumber.substring(record.sequenceNumber.length - 12)}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+
 
   const renderNotifications = () => (
     <div className="panel">
@@ -1288,9 +1186,9 @@ const App = () => {
     <div className="panel animate-in" style={{ background: '#000', border: '1px solid #333' }}>
       <div className="panel-header" style={{ borderBottom: '1px solid #222', paddingBottom: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Activity size={18} style={{ color: 'var(--accent)' }} />
-          <div className="panel-title" style={{ margin: 0, color: '#ccc' }}>Agent Live Heartbeat</div>
-          <div className="status-badge online" style={{ fontSize: '0.6rem' }}>UPLINK_STABLE</div>
+          <Zap size={18} style={{ color: '#ffde59' }} />
+          <div className="panel-title" style={{ margin: 0, color: '#ccc' }}>Kinesis Stream logs</div>
+          <div className="status-badge online" style={{ fontSize: '0.6rem' }}>LOG_STREAM_ACTIVE</div>
         </div>
       </div>
       <div className="terminal-body" style={{ height: 'calc(100vh - 300px)', overflowY: 'auto', fontFamily: 'monospace', padding: '1rem', color: '#fff' }}>
@@ -1368,11 +1266,9 @@ const App = () => {
             <Terminal size={18} /> <span>Terminal</span>
           </div>
           <div className={`nav-item ${activeTab === 'heartbeat' ? 'active' : ''}`} onClick={() => setActiveTab('heartbeat')}>
-            <Activity size={18} style={{ color: 'var(--accent)' }} /> <span>Agent Heartbeat</span>
+            <Zap size={18} style={{ color: '#ffde59' }} /> <span>Kinesis Stream logs</span>
           </div>
-          <div className={`nav-item ${activeTab === 'kinesis' ? 'active' : ''}`} onClick={() => setActiveTab('kinesis')}>
-            <Zap size={18} /> <span>Kinesis Stream</span>
-          </div>
+
           <div className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
             <Settings size={18} /> <span>Infrastructure</span>
           </div>
@@ -1587,7 +1483,7 @@ const App = () => {
                   </div>
                 )}
                 {activeTab === 'heartbeat' && renderAgentHeartbeat()}
-                {activeTab === 'kinesis' && renderKinesisStream()}
+
                 {activeTab === 'settings' && (
                   <div className="panel animate-in">
                     <div className="panel-header">

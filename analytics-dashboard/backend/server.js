@@ -16,7 +16,6 @@ app.use(express.static(path.join(__dirname, '../frontend/dist')));
 // AWS Configuration (assuming env vars or local config)
 AWS.config.update({ region: 'ap-south-1' });
 const dynamodb = new AWS.DynamoDB.DocumentClient();
-const kinesis = new AWS.Kinesis();
 
 // HTTP Health Check
 app.get('/health', (req, res) => {
@@ -38,6 +37,38 @@ app.get('/api/stream-data', async (req, res) => {
         res.status(500).json({ error: "Could not fetch stream data", details: err.message });
     }
 });
+
+// Poll DynamoDB for real Kinesis events processed by Lambda
+let lastProcessedId = null;
+const pollKinesisData = async () => {
+    try {
+        const params = { TableName: 'AnalyticsData', Limit: 10 };
+        const result = await dynamodb.scan(params).promise();
+        if (result.Items && result.Items.length > 0) {
+            // Sort by timestamp if possible, or just use ID comparison
+            const sorted = result.Items.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).reverse();
+
+            const newItems = sorted.filter(item => {
+                if (!lastProcessedId) return true;
+                return item.id > lastProcessedId;
+            });
+
+            newItems.forEach(item => {
+                const data = item.raw_data || {};
+                const log = `📥 KINESIS_RECORD: [${data.user || 'System'}] performed ${data.action || 'Unknown'} on ${data.page || 'Main'}`;
+                io.emit('agent_log', {
+                    timestamp: new Date(item.timestamp).toLocaleTimeString('en-GB', { hour12: false }),
+                    message: log
+                });
+                lastProcessedId = item.id;
+            });
+        }
+    } catch (err) {
+        // Silently skip if table not ready
+    }
+    setTimeout(pollKinesisData, 3000);
+};
+pollKinesisData();
 
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -106,7 +137,6 @@ initPM2Bus();
 // New Endpoint for Real Agent Data (Robust Handling)
 app.post('/agent_data', (req, res) => {
     let statsData = req.body.stats || (req.body.cpu ? req.body : null);
-    let kEvent = req.body.kinesis_event || null;
 
     // 1. Process System Stats (Overview Tab)
     if (statsData) {
@@ -114,17 +144,12 @@ app.post('/agent_data', (req, res) => {
         io.emit('server_stats', statsData);
     }
 
-    // 2. Process Real Kinesis Event (Stream Tab)
-    if (kEvent) {
-        io.emit('kinesis_data', kEvent);
-    }
+
 
     // 3. Emit Log for Terminal View
     let logMsg = '';
-    if (kEvent) {
-        logMsg = `✅ Pushed to Kinesis: ${kEvent.data?.user || 'Unknown'} -> ${kEvent.data?.action || 'Unknown'}`;
-    } else if (statsData) {
-        logMsg = `📡 Heartbeat: CPU: ${statsData.cpu?.usage || 0}% | RAM: ${statsData.memory?.percentage || 0}%`;
+    if (statsData) {
+        logMsg = `🔥 STREAM_INGEST: [CPU: ${statsData.cpu?.usage || 0}%] [RAM: ${statsData.memory?.percentage || 0}%] - Node: ${statsData.system?.hostname || 'unknown'}`;
     }
 
     if (logMsg) {
