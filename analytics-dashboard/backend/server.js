@@ -108,7 +108,7 @@ const initPM2Bus = () => {
 initPM2Bus();
 
 // --- NEW: DynamoDB Polling for Real-Time Dashboard Updates ---
-let lastProcessedTime = new Date().toISOString();
+let lastProcessedTime = null;
 
 const pollDynamoDB = async () => {
     try {
@@ -121,13 +121,17 @@ const pollDynamoDB = async () => {
         const data = await dynamodb.scan(params).promise();
 
         if (data.Items && data.Items.length > 0) {
-            // Find items newer than lastProcessedTime
-            const newItems = data.Items.filter(item => item.timestamp > lastProcessedTime);
+            // On the very FIRST run, we take the absolute latest even if it's old
+            // to populate the dashboard immediately.
+            const isInitialRun = (lastProcessedTime === null);
+
+            const newItems = isInitialRun
+                ? [data.Items[0]]
+                : data.Items.filter(item => item.timestamp > lastProcessedTime);
 
             if (newItems.length > 0) {
-                console.log(`✨ Found ${newItems.length} new records in DynamoDB`);
+                console.log(`✨ Syncing ${newItems.length} records from Cloud DB`);
 
-                // Emit each new item as a Kinesis event for the frontend
                 newItems.forEach(item => {
                     io.emit('kinesis_data', {
                         id: item.id.substring(0, 8),
@@ -137,40 +141,20 @@ const pollDynamoDB = async () => {
                     });
                 });
 
-                // --- NEW: Map DB Record to Overview Stats ---
-                const latestItem = newItems[0];
-                if (latestItem.raw_data && latestItem.raw_data.raw_metrics) {
+                const latestStats = newItems[0];
+                if (latestStats.raw_data && latestStats.raw_data.raw_metrics) {
                     const mappedStats = {
-                        system: {
-                            hostname: latestItem.raw_data.user,
-                            platform: "aws-lambda-tracked",
-                            isFromDB: true
-                        },
-                        cpu: {
-                            usage: latestItem.raw_data.raw_metrics.cpu,
-                            cores: "VCORE",
-                            speed: "SCALABLE"
-                        },
-                        memory: {
-                            percentage: latestItem.raw_data.raw_metrics.memory_pct,
-                            used: latestItem.raw_data.raw_metrics.memory_used_gb,
-                            total: "DYNAMIC"
-                        },
-                        storage: [
-                            { drive: "Cloud-Volume", percentage: 43, used: 3.67, total: 100 }
-                        ],
-                        network: [
-                            { iface: "kinesis-sync", rx: 512, tx: 128 }
-                        ],
-                        timestamp: latestItem.timestamp
+                        system: { hostname: latestStats.raw_data.user, platform: "aws-lambda-tracked", isFromDB: true },
+                        cpu: { usage: latestStats.raw_data.raw_metrics.cpu, cores: "VCORE", speed: "SCALABLE" },
+                        memory: { percentage: latestStats.raw_data.raw_metrics.memory_pct, used: latestStats.raw_data.raw_metrics.memory_used_gb, total: "DYNAMIC" },
+                        storage: [{ drive: "Cloud-Volume", percentage: 43, used: 3.67, total: 100 }],
+                        network: [{ iface: "kinesis-sync", rx: 512, tx: 128 }],
+                        timestamp: latestStats.timestamp
                     };
-
                     globalStats = mappedStats;
                     io.emit('server_stats', mappedStats);
                 }
-                // --------------------------------------------
 
-                // Update lastProcessedTime to the newest item found
                 lastProcessedTime = data.Items[0].timestamp;
             }
         }
